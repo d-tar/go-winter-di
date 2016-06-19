@@ -33,14 +33,14 @@ type ContextAware interface {
 }
 
 type CompenentRegisterAware interface {
-	OnComponentRegistered(*Component)
+	OnComponentRegistered(*ComponentImpl)
 }
 
 //Public default context constructor
 //By default uses StandardLifecycle
 func NewContext() (c Context, e error) {
 	c = &MutableContext{
-		components: make([]*Component, 0),
+		components: make([]*ComponentImpl, 0),
 	}
 
 	c.RegisterComponent(c)
@@ -70,15 +70,21 @@ func FastDefaultContext(components ...interface{}) (Context, error) {
 
 //Struct implements default context
 type MutableContext struct {
-	components []*Component //List of registered components
+	components []*ComponentImpl //List of registered components
 	registrationHandlers []CompenentRegisterAware
 }
 
 //Simple holder for registered components
-type Component struct {
-	Inst interface{}
+type ComponentImpl struct {
+	inst interface{}
 	ty   reflect.Type
-	Tags string
+	tags string
+}
+
+type Component interface {
+	Instance() interface{}
+	Type() reflect.Type
+	Tags() reflect.StructTag
 }
 
 func (c *MutableContext) RegisterComponent(value interface{}) {
@@ -89,7 +95,7 @@ func (c *MutableContext) RegisterComponentWithTags(value interface{},tags string
 	t := reflect.TypeOf(value)
 	log.Println("Registering component ", t,"tags",tags)
 
-	comp:=&Component{value, t,tags}
+	comp:=&ComponentImpl{value, t,tags}
 
 	c.components = append(c.components, comp)
 
@@ -111,7 +117,7 @@ func (c *MutableContext) RegisterComponentWithTags(value interface{},tags string
 func (c *MutableContext) Start() error {
 	cnt := 0
 	for _, i := range c.components {
-		if v, ok := i.Inst.(CtxEventHandler); ok {
+		if v, ok := i.inst.(CtxEventHandler); ok {
 			if err := v.OnStartContext(c); err != nil {
 				return err
 			}
@@ -127,7 +133,7 @@ func (c *MutableContext) Start() error {
 func (c *MutableContext) Stop() error {
 	cnt := 0
 	for _, i := range c.components {
-		if v, ok := i.Inst.(CtxEventHandler); ok {
+		if v, ok := i.inst.(CtxEventHandler); ok {
 			if err := v.OnStopContext(c); err != nil {
 				return err
 			}
@@ -139,8 +145,8 @@ func (c *MutableContext) Stop() error {
 	return nil
 }
 
-func (c *MutableContext) FindComponentsByType(t reflect.Type) []*Component {
-	r := make([]*Component, 0)
+func (c *MutableContext) FindComponentsByType(t reflect.Type) []*ComponentImpl {
+	r := make([]*ComponentImpl, 0)
 
 	for _, v := range c.components {
 		if v.ty.AssignableTo(t) {
@@ -148,4 +154,17 @@ func (c *MutableContext) FindComponentsByType(t reflect.Type) []*Component {
 		}
 	}
 	return r
+}
+
+
+func (t *ComponentImpl)Instance() interface{}{
+	return t.inst;
+}
+
+func (t *ComponentImpl) Type() reflect.Type{
+	return t.ty
+}
+
+func (t *ComponentImpl) Tags() reflect.StructTag{
+	return reflect.StructTag(t.tags)
 }

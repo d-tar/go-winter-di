@@ -4,21 +4,26 @@ import (
 	"log"
 	"errors"
 	"reflect"
+	"fmt"
 )
 
 //Marker interface to be implemented to
 //control lifecycle for each component in context
 type ComponentLifecycle interface {
 	//1st initialization phase: configure as type, before context configuration
-	OnPrepareComponent(c *Component) error
+	OnPrepareComponent(c *ComponentImpl) error
 	//2nd initialization phase: configure as component of context
-	OnComponentReady(c *Component) error
+	OnComponentReady(c *ComponentImpl) error
 	//3rd phase: dispose component
-	OnDestroyComponent(c *Component) error
+	OnDestroyComponent(c *ComponentImpl) error
 }
 
 type ComponentConfigurer interface {
-	ConfigureComponent(c *Component) error
+	ConfigureComponent(c *ComponentImpl) error
+}
+
+type ConfiguredContext interface {
+	FindComponentsByType(reflect.Type) []Component
 }
 
 //Interface to be implemented by component
@@ -45,10 +50,12 @@ type PreDestroyable interface {
 type StandardLifecycle struct {
 	lifecycleProcessors []ComponentLifecycle
 	//table of current component states
-	componentStates     map[*Component]uint32
+	componentStates     map[*ComponentImpl]uint32
 	//list of components in acquisition order
 	//  * this is an inversion of disposition order
-	componentOrder      []*Component
+	componentOrder      []*ComponentImpl
+
+	ctx 			*MutableContext
 }
 
 //Component that implements PreInitable and PostInitable interfaces behaviour
@@ -63,7 +70,7 @@ func assertTypeValid() {
 
 func NewStandardLifecycle() *StandardLifecycle{
 	return &StandardLifecycle{
-		componentStates:make(map[*Component]uint32),
+		componentStates:make(map[*ComponentImpl]uint32),
 	}
 }
 
@@ -73,8 +80,16 @@ const(
 	stateResolved
 )
 
-func  (h *StandardLifecycle) OnComponentRegistered(c *Component){
-	if p,ok:=c.Inst.(ComponentLifecycle);ok{
+func (this *StandardLifecycle) SetContext(c Context) error{
+	if v, ok := c.(*MutableContext); ok {
+		this.ctx = v
+		return nil
+	}
+	return fmt.Errorf("Unsupported context type")
+}
+
+func  (h *StandardLifecycle) OnComponentRegistered(c *ComponentImpl){
+	if p,ok:=c.inst.(ComponentLifecycle);ok{
 		h.lifecycleProcessors = append(h.lifecycleProcessors,p)
 	}
 
@@ -93,7 +108,7 @@ func (h *StandardLifecycle) OnStartContext(ctx *MutableContext) error {
 	return nil
 }
 
-func (h *StandardLifecycle) ConfigureComponent(c *Component) error{
+func (h *StandardLifecycle) ConfigureComponent(c *ComponentImpl) error{
 	log.Println("Configuring component",c.ty)
 	if s, ok := h.componentStates[c]; !ok {
 		h.componentStates[c] = stateResolving
@@ -135,31 +150,43 @@ func (h *StandardLifecycle) OnStopContext(ctx *MutableContext) error {
 	return nil
 }
 
-func (h *StandardLifecycle) deconstructComponent(c * Component){
+func (h *StandardLifecycle) deconstructComponent(c *ComponentImpl){
 	log.Println("Deconstructing component",c.ty)
 	for _,p:= range h.lifecycleProcessors{
 		p.OnDestroyComponent(c)
 	}
 }
 
-func (h *TwoPhaseInitializer) OnComponentReady(c *Component) error {
+func (h*StandardLifecycle) FindComponentsByType(t reflect.Type) []Component{
+	comps:=h.ctx.FindComponentsByType(t)
 
-	if v, ok := c.Inst.(PostInitable); ok {
+	r := make([]Component,len(comps),len(comps))
+
+	for i,c := range comps{
+		r[i] = c
+	}
+
+	return r
+}
+
+func (h *TwoPhaseInitializer) OnComponentReady(c *ComponentImpl) error {
+
+	if v, ok := c.inst.(PostInitable); ok {
 		v.PostInit()
 	}
 
 	return nil
 }
 
-func (h *TwoPhaseInitializer) OnPrepareComponent(c *Component) error {
-	if v, ok := c.Inst.(PreInitable); ok {
+func (h *TwoPhaseInitializer) OnPrepareComponent(c *ComponentImpl) error {
+	if v, ok := c.inst.(PreInitable); ok {
 		v.PreInit()
 	}
 	return nil
 }
 
-func (h *TwoPhaseInitializer) OnDestroyComponent(c *Component) error {
-	if v, ok := c.Inst.(PreDestroyable); ok {
+func (h *TwoPhaseInitializer) OnDestroyComponent(c *ComponentImpl) error {
+	if v, ok := c.inst.(PreDestroyable); ok {
 		v.PreDestroy()
 	}
 	return nil

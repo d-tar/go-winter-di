@@ -37,7 +37,7 @@ func (this *AutowiringProcessor) SetContext(c Context) error {
 			return fmt.Errorf("Bad context setup. Required 1 instance that implements ComponentConfigurer iface. Actual count: %v",len(components))
 		}
 
-		this.configurer = components[0].Inst.(ComponentConfigurer)
+		this.configurer = components[0].inst.(ComponentConfigurer)
 
 		return nil
 	}
@@ -45,15 +45,15 @@ func (this *AutowiringProcessor) SetContext(c Context) error {
 	return errors.New("Unsupported context type")
 }
 
-func (this *AutowiringProcessor) OnPrepareComponent(c *Component) error {
-	return this.autowireInstance(c.Inst)
+func (this *AutowiringProcessor) OnPrepareComponent(c *ComponentImpl) error {
+	return this.autowireInstance(c.inst)
 }
 
-func (this *AutowiringProcessor) OnComponentReady(c *Component) error {
+func (this *AutowiringProcessor) OnComponentReady(c *ComponentImpl) error {
 	return nil
 }
 
-func (this *AutowiringProcessor) OnDestroyComponent(c *Component) error{
+func (this *AutowiringProcessor) OnDestroyComponent(c *ComponentImpl) error{
 	return nil
 }
 
@@ -79,7 +79,7 @@ func (this *AutowiringProcessor) autowireInstance(c interface{}) error {
 
 		if v := fld.Tag.Get("inject"); v == "type" || v=="t" {
 			if err := this.injectFieldByType(fldAccessor, fld.Type); err != nil {
-				return err
+				return fmt.Errorf("Unable to process field %v, error %v",fld.Name,err)
 			}
 		}
 
@@ -116,7 +116,7 @@ func (this *AutowiringProcessor) injectFieldByType(fld reflect.Value, t reflect.
 		return err
 	}
 
-	fld.Set(reflect.ValueOf(r.Inst))
+	fld.Set(reflect.ValueOf(r.inst))
 
 	return nil
 }
@@ -152,7 +152,7 @@ func (this *AutowiringProcessor) injectAllComponentsByType(fld reflect.Value, t 
 			return err
 		}
 
-		target.Index(i).Set(reflect.ValueOf(r.Inst))
+		target.Index(i).Set(reflect.ValueOf(r.inst))
 	}
 
 
