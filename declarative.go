@@ -1,95 +1,97 @@
 package wntr
 
 import (
-	"reflect"
+	"fmt"
 	"log"
+	"reflect"
 )
 
-func ContextOrPanic(definitions...interface{}) Context{
-	ctx,err:=FastBoot(definitions...)
+func ContextOrPanic(definitions ...interface{}) Context {
+	ctx, err := FastBoot(definitions...)
 
-	if err!=nil{
+	if err != nil {
 		panic(err)
 	}
 
 	return ctx
 }
 
-func FastBoot(definitions...interface{}) (Context,error){
-	ctx,err := CreateComplexContext(definitions...) // (headbang)
+func FastBoot(definitions ...interface{}) (Context, error) {
+	ctx, err := CreateComplexContext(definitions...) // (headbang)
 
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
 
-	if err:=ctx.Start();err!=nil{
-		return nil,err
+	if err := ctx.Start(); err != nil {
+		return nil, err
 	}
 
-	return ctx,nil
+	return ctx, nil
 }
 
-func CreateComplexContext(definitions...interface{}) (Context,error){
-	ctx,err := FastDefaultContext();
+func CreateComplexContext(definitions ...interface{}) (Context, error) {
+	ctx, err := FastDefaultContext()
 
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
 
-	for _,beans := range definitions{
-		if err := populateComponents(ctx,beans); err != nil{
-			return nil,err
+	for _, configuration := range definitions {
+		if err := populateComponents(ctx, configuration); err != nil {
+			return nil, err
 		}
 	}
 
-	return ctx,nil
+	return ctx, nil
 }
 
+func populateComponents(ctx Context, def interface{}) error {
 
-func populateComponents(ctx Context, def interface{}) error{
+	v := reflect.ValueOf(def)
+	t := v.Type()
 
-
-
-	v:=reflect.ValueOf(def)
-	t:=v.Type()
-
-	if t.Kind()==reflect.Ptr{
+	if t.Kind() == reflect.Ptr {
 		t = t.Elem() //Dereference pointer to real type
+	} else {
+		return fmt.Errorf("Cannot create context from value-of-config. Pass pointer to config instead")
 	}
 
-	if t.Kind()==reflect.Slice{
+	if t.Kind() != reflect.Struct {
+		return fmt.Errorf("Cannot create context from non pointer-to-configuration structures. Expected kind Struct, but got %v", t.Kind())
+	}
+
+	if t.Kind() == reflect.Slice {
 		return nil
 	}
 
 	ctx.RegisterComponent(v.Interface())
 
+	log.Println("Populating definition from", t, t.Kind())
 
-	log.Println("Populating definition from",t,t.Kind())
+	for i := 0; i < t.NumField(); i++ {
+		fld := t.Field(i)
 
-	for i:=0;i<t.NumField();i++{
-		fld:=t.Field(i)
-
-
-		log.Println(fld.Name,fld.Type.Kind())
+		log.Println(fld.Name, fld.Type.Kind())
 
 		//If we have interface - let's expose it
-		if fld.Type.Kind()==reflect.Interface{
+		if fld.Type.Kind() == reflect.Interface {
 			fldVal := v.Elem().Field(i)
 			ptrToFld := fldVal.Interface()
-			if ptrToFld!=nil{
-				ctx.RegisterComponentWithTags(ptrToFld,string(fld.Tag))
+			if ptrToFld != nil {
+				ctx.RegisterComponentWithTags(ptrToFld, string(fld.Tag))
 			}
 		}
 
-		if(fld.Type.Kind()!=reflect.Struct&&fld.Type.Kind()!=reflect.Func){
+		if fld.Type.Kind() != reflect.Struct && fld.Type.Kind() != reflect.Func {
 			continue
 		}
 
 		fldVal := v.Elem().Field(i)
 		ptrToFld := fldVal.Addr().Interface()
 
-		if fld.Anonymous{
-			if err := populateComponents(ctx,ptrToFld);err!=nil{
+		if fld.Anonymous {
+			if err := populateComponents(ctx, ptrToFld); err != nil {
 				return err
 			}
 			continue
@@ -97,7 +99,7 @@ func populateComponents(ctx Context, def interface{}) error{
 
 		log.Println(ptrToFld)
 
-		ctx.RegisterComponentWithTags(ptrToFld,string(fld.Tag))
+		ctx.RegisterComponentWithTags(ptrToFld, string(fld.Tag))
 	}
 
 	return nil
