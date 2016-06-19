@@ -62,6 +62,15 @@ func populateComponents(ctx Context, def interface{}) error{
 
 		log.Println(fld)
 
+		//If we have interface - let's expose it
+		if fld.Type.Kind()==reflect.Interface{
+			fldVal := v.Elem().Field(i)
+			ptrToFld := fldVal.Interface()
+			if ptrToFld!=nil{
+				ctx.RegisterComponent(ptrToFld)
+			}
+		}
+
 		if(fld.Type.Kind()!=reflect.Struct){
 			continue
 		}
