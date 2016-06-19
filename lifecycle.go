@@ -61,8 +61,7 @@ type StandardLifecycle struct {
 //Component that implements PreInitable and PostInitable interfaces behaviour
 type TwoPhaseInitializer struct {
 }
-
-func assertTypeValid() {
+func _() {
 	var _ ComponentLifecycle = &TwoPhaseInitializer{}
 }
 

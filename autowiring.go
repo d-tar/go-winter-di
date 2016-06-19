@@ -13,8 +13,7 @@ type AutowiringProcessor struct {
 	ctx             *MutableContext
 	configurer	ComponentConfigurer
 }
-
-func __test_iface_at_compile_time() {
+func _() {
 	var _ ComponentLifecycle = &AutowiringProcessor{}
 }
 
