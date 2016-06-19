@@ -38,6 +38,7 @@ func NewContext() (c Context, e error) {
 		components: make([]Component, 0),
 	}
 
+	c.RegisterComponent(c)
 	c.RegisterComponent(&StandardLifecycle{})
 
 	return c, nil
