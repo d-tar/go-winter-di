@@ -9,8 +9,13 @@ import (
 
 //Default component that enables `autowire` tag on fields
 type AutowiringProcessor struct {
+	//points to component context served by this prcessor
 	ctx             *MutableContext
+	//table of current component states
 	componentStates map[interface{}]uint32
+	//list of components in acquisition order
+	//  * this is an inversion of disposition order
+	componentActivationOrder []interface{}
 }
 
 func __test_iface_at_compile_time() {
@@ -43,7 +48,7 @@ func (this *AutowiringProcessor) SetContext(c Context) error {
 }
 
 func (this *AutowiringProcessor) OnPrepareComponent(c Component) error {
-	return this.autowireInstance(c.inst)
+	return this.autowireInstance(c.Inst)
 }
 
 func (this *AutowiringProcessor) OnComponentReady(c Component) error {
@@ -63,28 +68,35 @@ func (this *AutowiringProcessor) OnDestroyComponent(c Component) error{
 //
 //  Other cases may cause unpredictable exceptions
 func (this *AutowiringProcessor) autowireInstance(c interface{}) error {
+	t := reflect.ValueOf(c).Elem()
+
+	//We can autowire just structs
+	if t.Kind()!=reflect.Struct{
+		return nil
+	}
 
 	if s, ok := this.componentStates[c]; !ok {
 		this.componentStates[c] = stateResolving
+		this.componentActivationOrder = append(this.componentActivationOrder,c)
 	} else if s == stateResolving {
 		return errors.New("Circular dependency")
 	} else { //Autowired already
 		return nil
 	}
 
-	t := reflect.ValueOf(c).Elem()
+
 
 	for i := 0; i < t.NumField(); i++ {
 		fldAccessor := t.Field(i)
 		fld := t.Type().Field(i)
 
-		if v := fld.Tag.Get("inject"); v == "type" {
+		if v := fld.Tag.Get("inject"); v == "type" || v=="t" {
 			if err := this.injectFieldByType(fldAccessor, fld.Type); err != nil {
 				return err
 			}
 		}
 
-		if v:= fld.Tag.Get("inject"); v=="all"{
+		if v:= fld.Tag.Get("inject"); v=="all" || v=="a"{
 			if err := this.injectAllComponentsByType(fldAccessor, fld.Type); err != nil {
 				return err
 			}
@@ -111,7 +123,7 @@ func (this *AutowiringProcessor) injectFieldByType(fld reflect.Value, t reflect.
 		return errors.New(fmt.Sprint("Field", fld, " cannot be set. Is it declared public?"))
 	}
 
-	r := candidates[0].inst
+	r := candidates[0].Inst
 
 	if s, ok := this.componentStates[r]; !ok || s != 2 {
 		if err := this.autowireInstance(r); err != nil {
@@ -149,7 +161,7 @@ func (this *AutowiringProcessor) injectAllComponentsByType(fld reflect.Value, t 
 
 
 	for i,c := range candidates{
-		r:=c.inst
+		r:=c.Inst
 
 		if s, ok := this.componentStates[r]; !ok || s != 2 {
 			if err := this.autowireInstance(r); err != nil {

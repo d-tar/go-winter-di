@@ -11,6 +11,7 @@ import (
 //	See CtxEventHandler interface for context event handling
 type Context interface {
 	RegisterComponent(interface{})
+	RegisterComponentWithTags(interface{},string)
 	Start() error
 	Stop() error
 }
@@ -70,15 +71,20 @@ type MutableContext struct {
 
 //Simple holder for registered components
 type Component struct {
-	inst interface{}
+	Inst interface{}
 	ty   reflect.Type
+	Tags string
 }
 
 func (c *MutableContext) RegisterComponent(value interface{}) {
-	t := reflect.TypeOf(value)
-	log.Println("Registering component ", t)
+	c.RegisterComponentWithTags(value,"")
+}
 
-	c.components = append(c.components, Component{value, t})
+func (c *MutableContext) RegisterComponentWithTags(value interface{},tags string) {
+	t := reflect.TypeOf(value)
+	log.Println("Registering component ", t,"tags",tags)
+
+	c.components = append(c.components, Component{value, t,tags})
 
 	if v, ok := value.(ContextAware); ok {
 		v.SetContext(c)
@@ -88,7 +94,7 @@ func (c *MutableContext) RegisterComponent(value interface{}) {
 func (c *MutableContext) Start() error {
 	cnt := 0
 	for _, i := range c.components {
-		if v, ok := i.inst.(CtxEventHandler); ok {
+		if v, ok := i.Inst.(CtxEventHandler); ok {
 			if err := v.OnStartContext(c); err != nil {
 				return err
 			}
@@ -104,7 +110,7 @@ func (c *MutableContext) Start() error {
 func (c *MutableContext) Stop() error {
 	cnt := 0
 	for _, i := range c.components {
-		if v, ok := i.inst.(CtxEventHandler); ok {
+		if v, ok := i.Inst.(CtxEventHandler); ok {
 			if err := v.OnStopContext(c); err != nil {
 				return err
 			}

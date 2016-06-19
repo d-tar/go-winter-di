@@ -55,7 +55,7 @@ func (h *StandardLifecycle) OnStartContext(ctx *MutableContext) error {
 
 	for _, comp := range ctx.components {
 		c = append(c, comp)
-		if v, ok := comp.inst.(ComponentLifecycle); ok {
+		if v, ok := comp.Inst.(ComponentLifecycle); ok {
 			p = append(p, v)
 		}
 	}
@@ -86,7 +86,7 @@ func (h *StandardLifecycle) OnStopContext(ctx *MutableContext) error {
 
 	for _, comp := range ctx.components {
 		c = append(c, comp)
-		if v, ok := comp.inst.(ComponentLifecycle); ok {
+		if v, ok := comp.Inst.(ComponentLifecycle); ok {
 			p = append(p, v)
 		}
 	}
@@ -103,7 +103,7 @@ func (h *StandardLifecycle) OnStopContext(ctx *MutableContext) error {
 
 func (h *TwoPhaseInitializer) OnComponentReady(c Component) error {
 
-	if v, ok := c.inst.(PostInitable); ok {
+	if v, ok := c.Inst.(PostInitable); ok {
 		v.PostInit()
 	}
 
@@ -111,14 +111,14 @@ func (h *TwoPhaseInitializer) OnComponentReady(c Component) error {
 }
 
 func (h *TwoPhaseInitializer) OnPrepareComponent(c Component) error {
-	if v, ok := c.inst.(PreInitable); ok {
+	if v, ok := c.Inst.(PreInitable); ok {
 		v.PreInit()
 	}
 	return nil
 }
 
 func (h *TwoPhaseInitializer) OnDestroyComponent(c Component) error {
-	if v, ok := c.inst.(PreDestroyable); ok {
+	if v, ok := c.Inst.(PreDestroyable); ok {
 		v.PreDestroy()
 	}
 	return nil

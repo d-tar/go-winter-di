@@ -60,18 +60,18 @@ func populateComponents(ctx Context, def interface{}) error{
 		fld:=t.Field(i)
 
 
-		log.Println(fld)
+		log.Println(fld.Name,fld.Type.Kind())
 
 		//If we have interface - let's expose it
 		if fld.Type.Kind()==reflect.Interface{
 			fldVal := v.Elem().Field(i)
 			ptrToFld := fldVal.Interface()
 			if ptrToFld!=nil{
-				ctx.RegisterComponent(ptrToFld)
+				ctx.RegisterComponentWithTags(ptrToFld,string(fld.Tag))
 			}
 		}
 
-		if(fld.Type.Kind()!=reflect.Struct){
+		if(fld.Type.Kind()!=reflect.Struct&&fld.Type.Kind()!=reflect.Func){
 			continue
 		}
 
@@ -87,7 +87,7 @@ func populateComponents(ctx Context, def interface{}) error{
 
 		log.Println(ptrToFld)
 
-		ctx.RegisterComponent(ptrToFld)
+		ctx.RegisterComponentWithTags(ptrToFld,string(fld.Tag))
 	}
 
 	return nil

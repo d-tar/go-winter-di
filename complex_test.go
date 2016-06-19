@@ -79,7 +79,7 @@ func TestSmallConfiguration(t *testing.T){
 
 func TestInjectAllInstances(t *testing.T){
 	var app struct{
-		D1 DaoImpl2
+		D1 DaoImpl2 `@mvc:"123"`
 		D2 DaoImpl2
 		D AllDaoStruct
 	}
