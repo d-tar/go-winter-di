@@ -74,8 +74,14 @@ func (this *AutowiringProcessor) autowireInstance(c interface{}) error {
 		fldAccessor := t.Field(i)
 		fld := t.Type().Field(i)
 
-		if v := fld.Tag.Get("autowire"); v == "type" {
+		if v := fld.Tag.Get("inject"); v == "type" {
 			if err := this.injectFieldByType(fldAccessor, fld.Type); err != nil {
+				return err
+			}
+		}
+
+		if v:= fld.Tag.Get("inject"); v=="all"{
+			if err := this.injectAllComponentsByType(fldAccessor, fld.Type); err != nil {
 				return err
 			}
 		}
@@ -110,6 +116,48 @@ func (this *AutowiringProcessor) injectFieldByType(fld reflect.Value, t reflect.
 	}
 
 	fld.Set(reflect.ValueOf(r))
+
+	return nil
+}
+
+func (this *AutowiringProcessor) injectAllComponentsByType(fld reflect.Value, t reflect.Type) error {
+	log.Println("Injecting field", fld, "by all type instances")
+
+	if t.Kind()!=reflect.Slice{
+		return fmt.Errorf("Bad inject:all field. Slice expected, got: %v",t.Kind())
+	}
+
+	sliceType := t
+
+	t = t.Elem() //Get slice's type
+
+	candidates := this.ctx.FindComponentsByType(t)
+
+	if len(candidates) == 0 {
+		return errors.New(fmt.Sprint("Component not found. Type", t))
+	}
+
+	if !fld.CanSet() {
+		return errors.New(fmt.Sprint("Field", fld, " cannot be set. Is it declared public?"))
+	}
+
+	target := reflect.MakeSlice(sliceType,len(candidates),len(candidates))
+
+
+	for i,c := range candidates{
+		r:=c.inst
+
+		if s, ok := this.componentStates[r]; !ok || s != 2 {
+			if err := this.autowireInstance(r); err != nil {
+				return err
+			}
+
+		}
+		target.Index(i).Set(reflect.ValueOf(r))
+	}
+
+
+	fld.Set(target)
 
 	return nil
 }

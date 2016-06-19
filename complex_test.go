@@ -15,7 +15,11 @@ type DaoImpl2 struct {
 }
 
 type Controller struct {
-	Dao Dao2 `autowire:"type"`
+	Dao Dao2 `inject:"type"`
+}
+
+type AllDaoStruct struct {
+	Dao []Dao2 `inject:"all"`
 }
 
 func (c*Controller) DoController(){
@@ -62,7 +66,7 @@ func TestComplexConfiugration(t *testing.T){
 func TestSmallConfiguration(t *testing.T){
 	var app struct{
 		Baseapp
-		Ctx Context `autowire:"type"`
+		Ctx Context `inject:"type"`
 	}
 
 	if _,err := FastBoot(&app);err!=nil{
@@ -70,4 +74,24 @@ func TestSmallConfiguration(t *testing.T){
 	}
 
 	app.Ctx.Stop()
+}
+
+
+func TestInjectAllInstances(t *testing.T){
+	var app struct{
+		D1 DaoImpl2
+		D2 DaoImpl2
+		D AllDaoStruct
+	}
+
+	if _,err := FastBoot(&app);err!=nil{
+		t.Fatal("Failed to boot up context",err)
+	}
+
+	if app.D.Dao == nil{
+		t.Fatal("Inejct all not working",app)
+	}
+
+	log.Println(app.D.Dao,app.D.Dao[0])
+
 }

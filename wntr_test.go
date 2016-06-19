@@ -72,7 +72,7 @@ Autowiring test
 */
 
 type AutowiringService struct {
-	Test *testing.T `autowire:"type"` //Inject pointer by type
+	Test *testing.T `inject:"type"` //Inject pointer by type
 }
 
 func TestAutowiring(t *testing.T) {
@@ -115,7 +115,7 @@ func (i *DaoImpl) DoCrud() {
 
 type CrudService struct {
 	//NOTE: Interface is injected 'by-value' not 'by-pointer'
-	Dao DaoInterface `autowire:"type"`
+	Dao DaoInterface `inject:"type"`
 }
 
 func TestInterfaceAutowiring(t *testing.T) {
@@ -146,15 +146,15 @@ Test circular dependency detection
 */
 
 type ClassA struct {
-	B *ClassB `autowire:"type"`
+	B *ClassB `inject:"type"`
 }
 
 type ClassB struct {
-	C *ClassC `autowire:"type"`
+	C *ClassC `inject:"type"`
 }
 
 type ClassC struct {
-	A *ClassA `autowire:"type"`
+	A *ClassA `inject:"type"`
 }
 
 func TestCircularDependency(t *testing.T) {
