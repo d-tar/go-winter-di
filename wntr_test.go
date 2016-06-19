@@ -146,15 +146,15 @@ Test circular dependency detection
 */
 
 type ClassA struct {
-	B *ClassB `inject:"type"`
+	B *ClassB `inject:"t"`
 }
 
 type ClassB struct {
-	C *ClassC `inject:"type"`
+	C *ClassC `inject:"t"`
 }
 
 type ClassC struct {
-	A *ClassA `inject:"type"`
+	A *ClassA `inject:"t"`
 }
 
 func TestCircularDependency(t *testing.T) {
@@ -198,4 +198,36 @@ func TestPredestroyableInterface(t*testing.T){
 	if !test.C.disposed{
 		t.Fatal("Component was not disposed")
 	}
+}
+
+/*
+Test destruction order
+
+Here we expect that destruction order is inverted to configuration order
+Note: it's dependency aware, so dependent component SHOULD be
+destroyed before it's dependency
+ */
+
+type T1 struct {
+}
+
+type T2 struct {
+	Tptr *T1 `inject:"t"`
+}
+
+type T3 struct {
+	Tptr *T2 `inject:"t"`
+}
+
+func TestPredictedDestructionOrder(t *testing.T){
+	var test struct{
+		I3 T1
+		I2 T2
+		I1 T3
+	}
+
+	ctx:=ContextOrPanic(&test)
+
+
+	ctx.Stop()
 }

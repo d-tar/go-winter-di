@@ -5,6 +5,16 @@ import (
 	"log"
 )
 
+func ContextOrPanic(definitions...interface{}) Context{
+	ctx,err:=FastBoot(definitions...)
+
+	if err!=nil{
+		panic(err)
+	}
+
+	return ctx
+}
+
 func FastBoot(definitions...interface{}) (Context,error){
 	ctx,err := CreateComplexContext(definitions...) // (headbang)
 

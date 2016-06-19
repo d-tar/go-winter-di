@@ -2,17 +2,23 @@ package wntr
 
 import (
 	"log"
+	"errors"
+	"reflect"
 )
 
 //Marker interface to be implemented to
 //control lifecycle for each component in context
 type ComponentLifecycle interface {
 	//1st initialization phase: configure as type, before context configuration
-	OnPrepareComponent(c Component) error
+	OnPrepareComponent(c *Component) error
 	//2nd initialization phase: configure as component of context
-	OnComponentReady(c Component) error
+	OnComponentReady(c *Component) error
 	//3rd phase: dispose component
-	OnDestroyComponent(c Component) error
+	OnDestroyComponent(c *Component) error
+}
+
+type ComponentConfigurer interface {
+	ConfigureComponent(c *Component) error
 }
 
 //Interface to be implemented by component
@@ -37,6 +43,12 @@ type PreDestroyable interface {
 //
 // Required to add ComponentLifecycle components to context
 type StandardLifecycle struct {
+	lifecycleProcessors []ComponentLifecycle
+	//table of current component states
+	componentStates     map[*Component]uint32
+	//list of components in acquisition order
+	//  * this is an inversion of disposition order
+	componentOrder      []*Component
 }
 
 //Component that implements PreInitable and PostInitable interfaces behaviour
@@ -49,59 +61,88 @@ func assertTypeValid() {
 
 /* Implementation */
 
+func NewStandardLifecycle() *StandardLifecycle{
+	return &StandardLifecycle{
+		componentStates:make(map[*Component]uint32),
+	}
+}
+
+const(
+	stateNotWired = iota
+	stateResolving
+	stateResolved
+)
+
+func  (h *StandardLifecycle) OnComponentRegistered(c *Component){
+	if p,ok:=c.Inst.(ComponentLifecycle);ok{
+		h.lifecycleProcessors = append(h.lifecycleProcessors,p)
+	}
+
+}
+
 func (h *StandardLifecycle) OnStartContext(ctx *MutableContext) error {
 
-	p, c := make([]ComponentLifecycle, 0), make([]Component, 0)
-
 	for _, comp := range ctx.components {
-		c = append(c, comp)
-		if v, ok := comp.Inst.(ComponentLifecycle); ok {
-			p = append(p, v)
+		if err := h.ConfigureComponent(comp);err!=nil{
+			return err
 		}
 	}
 
-	for _, proc := range p {
-		for _, comp := range c {
-			if err := proc.OnPrepareComponent(comp); err != nil {
-				return err
-			}
+	log.Println("StandardLifecycle: ", len(ctx.components), "components", len(h.lifecycleProcessors), "processors")
+
+	return nil
+}
+
+func (h *StandardLifecycle) ConfigureComponent(c *Component) error{
+	log.Println("Configuring component",c.ty)
+	if s, ok := h.componentStates[c]; !ok {
+		h.componentStates[c] = stateResolving
+		log.Println("Start configuring",c,ok,s)
+	} else if s == stateResolving {
+		return errors.New("Circular dependency")
+	} else { //Configured already
+		return nil
+	}
+
+	for _,p := range h.lifecycleProcessors{
+		log.Println(reflect.TypeOf(p).Elem().Name(),c.ty)
+		if err := p.OnPrepareComponent(c);err!=nil{
+			return err
 		}
 	}
 
-	for _, proc := range p {
-		for _, comp := range c {
-			if err := proc.OnComponentReady(comp); err != nil {
-				return err
-			}
+	for _,p := range h.lifecycleProcessors {
+		if err := p.OnComponentReady(c); err != nil {
+			return err
 		}
 	}
 
-	log.Println("StandardLifecycle: ", len(c), "components", len(p), "processors")
+	h.componentStates[c] = stateResolved
+	log.Println("Component configured",c,h.componentStates)
+	h.componentOrder = append(h.componentOrder,c)
 
 	return nil
 }
 
 func (h *StandardLifecycle) OnStopContext(ctx *MutableContext) error {
-	p, c := make([]ComponentLifecycle, 0), make([]Component, 0)
+	eIdx := len(h.componentOrder)-1
 
-	for _, comp := range ctx.components {
-		c = append(c, comp)
-		if v, ok := comp.Inst.(ComponentLifecycle); ok {
-			p = append(p, v)
-		}
+	for i,_ := range h.componentOrder{
+		c:=h.componentOrder[eIdx-i]
+		h.deconstructComponent(c)
 	}
 
-	for _, proc := range p {
-		for _, comp := range c {
-			if err := proc.OnDestroyComponent(comp); err != nil {
-				return err
-			}
-		}
-	}
 	return nil
 }
 
-func (h *TwoPhaseInitializer) OnComponentReady(c Component) error {
+func (h *StandardLifecycle) deconstructComponent(c * Component){
+	log.Println("Deconstructing component",c.ty)
+	for _,p:= range h.lifecycleProcessors{
+		p.OnDestroyComponent(c)
+	}
+}
+
+func (h *TwoPhaseInitializer) OnComponentReady(c *Component) error {
 
 	if v, ok := c.Inst.(PostInitable); ok {
 		v.PostInit()
@@ -110,14 +151,14 @@ func (h *TwoPhaseInitializer) OnComponentReady(c Component) error {
 	return nil
 }
 
-func (h *TwoPhaseInitializer) OnPrepareComponent(c Component) error {
+func (h *TwoPhaseInitializer) OnPrepareComponent(c *Component) error {
 	if v, ok := c.Inst.(PreInitable); ok {
 		v.PreInit()
 	}
 	return nil
 }
 
-func (h *TwoPhaseInitializer) OnDestroyComponent(c Component) error {
+func (h *TwoPhaseInitializer) OnDestroyComponent(c *Component) error {
 	if v, ok := c.Inst.(PreDestroyable); ok {
 		v.PreDestroy()
 	}

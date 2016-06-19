@@ -32,15 +32,19 @@ type ContextAware interface {
 	SetContext(c Context) error
 }
 
+type CompenentRegisterAware interface {
+	OnComponentRegistered(*Component)
+}
+
 //Public default context constructor
 //By default uses StandardLifecycle
 func NewContext() (c Context, e error) {
 	c = &MutableContext{
-		components: make([]Component, 0),
+		components: make([]*Component, 0),
 	}
 
 	c.RegisterComponent(c)
-	c.RegisterComponent(&StandardLifecycle{})
+	c.RegisterComponent(NewStandardLifecycle())
 
 	return c, nil
 }
@@ -66,7 +70,8 @@ func FastDefaultContext(components ...interface{}) (Context, error) {
 
 //Struct implements default context
 type MutableContext struct {
-	components []Component //List of registered components
+	components []*Component //List of registered components
+	registrationHandlers []CompenentRegisterAware
 }
 
 //Simple holder for registered components
@@ -84,11 +89,23 @@ func (c *MutableContext) RegisterComponentWithTags(value interface{},tags string
 	t := reflect.TypeOf(value)
 	log.Println("Registering component ", t,"tags",tags)
 
-	c.components = append(c.components, Component{value, t,tags})
+	comp:=&Component{value, t,tags}
+
+	c.components = append(c.components, comp)
 
 	if v, ok := value.(ContextAware); ok {
 		v.SetContext(c)
 	}
+
+	for _,handler := range c.registrationHandlers{
+		handler.OnComponentRegistered(comp)
+	}
+
+	if v, ok := value.(CompenentRegisterAware); ok {
+		c.registrationHandlers = append(c.registrationHandlers,v)
+	}
+
+
 }
 
 func (c *MutableContext) Start() error {
@@ -122,11 +139,11 @@ func (c *MutableContext) Stop() error {
 	return nil
 }
 
-func (c *MutableContext) FindComponentsByType(t reflect.Type) []Component {
-	r := make([]Component, 0)
+func (c *MutableContext) FindComponentsByType(t reflect.Type) []*Component {
+	r := make([]*Component, 0)
 
 	for _, v := range c.components {
-		if v.ty.ConvertibleTo(t) {
+		if v.ty.AssignableTo(t) {
 			r = append(r, v)
 		}
 	}

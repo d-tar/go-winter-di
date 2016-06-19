@@ -11,11 +11,7 @@ import (
 type AutowiringProcessor struct {
 	//points to component context served by this prcessor
 	ctx             *MutableContext
-	//table of current component states
-	componentStates map[interface{}]uint32
-	//list of components in acquisition order
-	//  * this is an inversion of disposition order
-	componentActivationOrder []interface{}
+	configurer	ComponentConfigurer
 }
 
 func __test_iface_at_compile_time() {
@@ -24,38 +20,40 @@ func __test_iface_at_compile_time() {
 
 //Default contructor for AutowiringProcessor
 func NewAutowiringProcessor() *AutowiringProcessor {
-	return &AutowiringProcessor{
-		componentStates: make(map[interface{}]uint32),
-	}
+	return &AutowiringProcessor{}
 }
 
 /* implementation */
-
-const(
-	stateNotWired = iota
-	stateResolving
-	stateResolved
-)
 
 //Get current module context
 func (this *AutowiringProcessor) SetContext(c Context) error {
 	if v, ok := c.(*MutableContext); ok {
 		this.ctx = v
+		ty := reflect.TypeOf((*ComponentConfigurer)(nil)).Elem()
+
+		components:=v.FindComponentsByType(ty)
+
+		if len(components)!=1{
+			return fmt.Errorf("Bad context setup. Required 1 instance that implements ComponentConfigurer iface. Actual count: %v",len(components))
+		}
+
+		this.configurer = components[0].Inst.(ComponentConfigurer)
+
 		return nil
 	}
 
 	return errors.New("Unsupported context type")
 }
 
-func (this *AutowiringProcessor) OnPrepareComponent(c Component) error {
+func (this *AutowiringProcessor) OnPrepareComponent(c *Component) error {
 	return this.autowireInstance(c.Inst)
 }
 
-func (this *AutowiringProcessor) OnComponentReady(c Component) error {
+func (this *AutowiringProcessor) OnComponentReady(c *Component) error {
 	return nil
 }
 
-func (this *AutowiringProcessor) OnDestroyComponent(c Component) error{
+func (this *AutowiringProcessor) OnDestroyComponent(c *Component) error{
 	return nil
 }
 
@@ -75,17 +73,6 @@ func (this *AutowiringProcessor) autowireInstance(c interface{}) error {
 		return nil
 	}
 
-	if s, ok := this.componentStates[c]; !ok {
-		this.componentStates[c] = stateResolving
-		this.componentActivationOrder = append(this.componentActivationOrder,c)
-	} else if s == stateResolving {
-		return errors.New("Circular dependency")
-	} else { //Autowired already
-		return nil
-	}
-
-
-
 	for i := 0; i < t.NumField(); i++ {
 		fldAccessor := t.Field(i)
 		fld := t.Type().Field(i)
@@ -102,7 +89,7 @@ func (this *AutowiringProcessor) autowireInstance(c interface{}) error {
 			}
 		}
 	}
-	this.componentStates[c] = stateResolved
+
 	return nil
 }
 
@@ -123,15 +110,13 @@ func (this *AutowiringProcessor) injectFieldByType(fld reflect.Value, t reflect.
 		return errors.New(fmt.Sprint("Field", fld, " cannot be set. Is it declared public?"))
 	}
 
-	r := candidates[0].Inst
+	r := candidates[0]
 
-	if s, ok := this.componentStates[r]; !ok || s != 2 {
-		if err := this.autowireInstance(r); err != nil {
-			return err
-		}
+	if err:=this.configurer.ConfigureComponent(r);err!=nil{
+		return err
 	}
 
-	fld.Set(reflect.ValueOf(r))
+	fld.Set(reflect.ValueOf(r.Inst))
 
 	return nil
 }
@@ -161,15 +146,13 @@ func (this *AutowiringProcessor) injectAllComponentsByType(fld reflect.Value, t 
 
 
 	for i,c := range candidates{
-		r:=c.Inst
+		r:=c
 
-		if s, ok := this.componentStates[r]; !ok || s != 2 {
-			if err := this.autowireInstance(r); err != nil {
-				return err
-			}
-
+		if err:=this.configurer.ConfigureComponent(r);err!=nil{
+			return err
 		}
-		target.Index(i).Set(reflect.ValueOf(r))
+
+		target.Index(i).Set(reflect.ValueOf(r.Inst))
 	}
 
 
