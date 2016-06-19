@@ -50,6 +50,10 @@ func (this *AutowiringProcessor) OnComponentReady(c Component) error {
 	return nil
 }
 
+func (this *AutowiringProcessor) OnDestroyComponent(c Component) error{
+	return nil
+}
+
 //Processes every autowire'ed field for instance
 //Implementation is too specific, with lot of assumptions
 //   1) components are 'pointers-to-type' only

@@ -172,3 +172,30 @@ func TestCircularDependency(t *testing.T) {
 	t.Log("Ok:", e)
 
 }
+
+
+/*
+Test PreDestroyable
+ */
+
+type DisposableComp struct {
+	disposed bool
+}
+
+func (this*DisposableComp) PreDestroy(){
+	this.disposed=true
+	log.Println("Component disposed")
+}
+
+func TestPredestroyableInterface(t*testing.T){
+	var test struct{
+		C DisposableComp
+	}
+
+	ctx,_:=FastBoot(&test)
+	ctx.Stop()
+
+	if !test.C.disposed{
+		t.Fatal("Component was not disposed")
+	}
+}
