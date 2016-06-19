@@ -32,7 +32,7 @@ type ContextAware interface {
 	SetContext(c Context) error
 }
 
-type CompenentRegisterAware interface {
+type ComponentRegisterAware interface {
 	OnComponentRegistered(*ComponentImpl)
 }
 
@@ -71,7 +71,7 @@ func FastDefaultContext(components ...interface{}) (Context, error) {
 //Struct implements default context
 type MutableContext struct {
 	components []*ComponentImpl //List of registered components
-	registrationHandlers []CompenentRegisterAware
+	registrationHandlers []ComponentRegisterAware
 }
 
 //Simple holder for registered components
@@ -107,7 +107,7 @@ func (c *MutableContext) RegisterComponentWithTags(value interface{},tags string
 		handler.OnComponentRegistered(comp)
 	}
 
-	if v, ok := value.(CompenentRegisterAware); ok {
+	if v, ok := value.(ComponentRegisterAware); ok {
 		c.registrationHandlers = append(c.registrationHandlers,v)
 	}
 
