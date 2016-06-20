@@ -67,12 +67,10 @@ func populateComponents(ctx Context, def interface{}) error {
 
 	ctx.RegisterComponent(v.Interface())
 
-	log.Println("Populating definition from", t, t.Kind())
+	log.Println("StructContext: Registering definitions from ", t, "...")
 
 	for i := 0; i < t.NumField(); i++ {
 		fld := t.Field(i)
-
-		log.Println(fld.Name, fld.Type.Kind())
 
 		//If we have interface - let's expose it
 		if fld.Type.Kind() == reflect.Interface {
@@ -96,8 +94,6 @@ func populateComponents(ctx Context, def interface{}) error {
 			}
 			continue
 		}
-
-		log.Println(ptrToFld)
 
 		ctx.RegisterComponentWithTags(ptrToFld, string(fld.Tag))
 	}

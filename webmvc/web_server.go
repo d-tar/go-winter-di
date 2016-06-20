@@ -1,7 +1,6 @@
 package webmvc
 
 import (
-	"fmt"
 	"github.com/d-tar/wntr"
 	"log"
 	"net"
@@ -23,8 +22,8 @@ type WebServerComponent struct {
 	listener  net.Listener
 	wait      *sync.Cond
 	exitError error
-	Mvc       *MvcHandler            `inject:"t"`
-	Ctx       wntr.ConfiguredContext `inject:"t"`
+
+	Dispatcher *RequestDispatcher `inject:"t"`
 }
 
 func _() {
@@ -43,19 +42,11 @@ type requestMapping struct {
 var gWebControllerType reflect.Type = reflect.TypeOf((*WebController)(nil)).Elem()
 
 func (this *WebServerComponent) PostInit() error {
-	for _, c := range this.requestMappings() {
-		if reflect.ValueOf(c.handler).Elem().IsNil() {
-			return fmt.Errorf("WebMVC: Unable to map %v handler. Cause it is null. Did you forget to init HandlerProc?", c.path)
-		}
-		log.Println("WebMVC: Mapped ", c.path, " to  ", c.handler, " ")
-		http.HandleFunc(c.path, this.createMavHandler(c.handler))
-	}
-
 	var m sync.Mutex
 	this.wait = sync.NewCond(&m)
 	this.wait.L.Lock()
 
-	s := &http.Server{Addr: ":8080"}
+	s := &http.Server{Addr: ":8080", Handler: this.Dispatcher}
 
 	log.Println("Starting web server...")
 	go func() {
@@ -66,33 +57,6 @@ func (this *WebServerComponent) PostInit() error {
 	}()
 
 	return nil
-}
-
-func (this *WebServerComponent) requestMappings() []requestMapping {
-	r := make([]requestMapping, 0)
-
-	for _, ctl := range this.Ctx.FindComponentsByType(gWebControllerType) {
-
-		tag := ctl.Tags()
-		if uri := tag.Get("@web-uri"); uri != "" {
-			r = append(r, requestMapping{
-				path:    uri,
-				handler: ctl.Instance().(WebController),
-			})
-		}
-	}
-
-	return r
-}
-
-func (this *WebServerComponent) createMavHandler(c WebController) func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		mav := c.Serve(r)
-
-		if err := this.Mvc.HandleWebResult(mav, w, r); err != nil {
-			panic(err)
-		}
-	}
 }
 
 func (this *WebServerComponent) Wait() error {

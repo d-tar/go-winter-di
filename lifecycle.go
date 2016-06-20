@@ -109,10 +109,9 @@ func (h *StandardLifecycle) OnStartContext(ctx *MutableContext) error {
 }
 
 func (h *StandardLifecycle) ConfigureComponent(c *ComponentImpl) error {
-	log.Println("Configuring component", c.ty)
 	if s, ok := h.componentStates[c]; !ok {
 		h.componentStates[c] = stateResolving
-		log.Println("Start configuring", c, ok, s)
+		log.Println("Start configuring", c.ty)
 	} else if s == stateResolving {
 		return errors.New("Circular dependency")
 	} else { //Configured already
@@ -120,7 +119,7 @@ func (h *StandardLifecycle) ConfigureComponent(c *ComponentImpl) error {
 	}
 
 	for _, p := range h.lifecycleProcessors {
-		log.Println(reflect.TypeOf(p).Elem().Name(), c.ty)
+		//log.Println(reflect.TypeOf(p).Elem().Name(), c.ty)
 		if err := p.OnPrepareComponent(c); err != nil {
 			return err
 		}
@@ -133,7 +132,7 @@ func (h *StandardLifecycle) ConfigureComponent(c *ComponentImpl) error {
 	}
 
 	h.componentStates[c] = stateResolved
-	log.Println("Component configured", c, h.componentStates)
+	log.Println("Component configured", c.ty)
 	h.componentOrder = append(h.componentOrder, c)
 
 	return nil

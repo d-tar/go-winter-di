@@ -78,14 +78,14 @@ func (this *AutowiringProcessor) autowireInstance(c interface{}) error {
 		fld := t.Type().Field(i)
 
 		if v := fld.Tag.Get("inject"); v == "type" || v == "t" {
-			if err := this.injectFieldByType(fldAccessor, fld.Type); err != nil {
+			if err := this.injectFieldByType(fldAccessor, fld); err != nil {
 				//return fmt.Errorf("Unable to process field %v, error %v",fld.Name,err)
 				return typeConstructError(t.Type(), fld, err)
 			}
 		}
 
 		if v := fld.Tag.Get("inject"); v == "all" || v == "a" {
-			if err := this.injectAllComponentsByType(fldAccessor, fld.Type); err != nil {
+			if err := this.injectAllComponentsByType(fldAccessor, fld); err != nil {
 				//return err
 				return typeConstructError(t.Type(), fld, err)
 			}
@@ -95,9 +95,9 @@ func (this *AutowiringProcessor) autowireInstance(c interface{}) error {
 	return nil
 }
 
-func (this *AutowiringProcessor) injectFieldByType(fld reflect.Value, t reflect.Type) error {
-
-	log.Println("Injecting field", fld, "by type")
+func (this *AutowiringProcessor) injectFieldByType(fld reflect.Value, f reflect.StructField) error {
+	t := f.Type
+	log.Println("Injecting field", f.Name, "by type")
 
 	candidates := this.ctx.FindComponentsByType(t)
 
@@ -123,8 +123,9 @@ func (this *AutowiringProcessor) injectFieldByType(fld reflect.Value, t reflect.
 	return nil
 }
 
-func (this *AutowiringProcessor) injectAllComponentsByType(fld reflect.Value, t reflect.Type) error {
-	log.Println("Injecting field", fld, "by all type instances")
+func (this *AutowiringProcessor) injectAllComponentsByType(fld reflect.Value, f reflect.StructField) error {
+	t := f.Type
+	log.Println("Injecting field", f.Name, "by all type instances")
 
 	if t.Kind() != reflect.Slice {
 		return fmt.Errorf("Bad inject:all field. Slice expected, got: %v", t.Kind())
