@@ -173,29 +173,28 @@ func TestCircularDependency(t *testing.T) {
 
 }
 
-
 /*
 Test PreDestroyable
- */
+*/
 
 type DisposableComp struct {
 	disposed bool
 }
 
-func (this*DisposableComp) PreDestroy(){
-	this.disposed=true
+func (this *DisposableComp) PreDestroy() {
+	this.disposed = true
 	log.Println("Component disposed")
 }
 
-func TestPredestroyableInterface(t*testing.T){
-	var test struct{
+func TestPredestroyableInterface(t *testing.T) {
+	var test struct {
 		C DisposableComp
 	}
 
-	ctx,_:=FastBoot(&test)
+	ctx, _ := FastBoot(&test)
 	ctx.Stop()
 
-	if !test.C.disposed{
+	if !test.C.disposed {
 		t.Fatal("Component was not disposed")
 	}
 }
@@ -206,7 +205,7 @@ Test destruction order
 Here we expect that destruction order is inverted to configuration order
 Note: it's dependency aware, so dependent component SHOULD be
 destroyed before it's dependency
- */
+*/
 
 type T1 struct {
 }
@@ -219,15 +218,14 @@ type T3 struct {
 	Tptr *T2 `inject:"t"`
 }
 
-func TestPredictedDestructionOrder(t *testing.T){
-	var test struct{
+func TestPredictedDestructionOrder(t *testing.T) {
+	var test struct {
 		I3 T1
 		I2 T2
 		I1 T3
 	}
 
-	ctx:=ContextOrPanic(&test)
-
+	ctx := ContextOrPanic(&test)
 
 	ctx.Stop()
 }

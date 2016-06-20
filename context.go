@@ -11,7 +11,7 @@ import (
 //	See CtxEventHandler interface for context event handling
 type Context interface {
 	RegisterComponent(interface{})
-	RegisterComponentWithTags(interface{},string)
+	RegisterComponentWithTags(interface{}, string)
 	Start() error
 	Stop() error
 }
@@ -70,7 +70,7 @@ func FastDefaultContext(components ...interface{}) (Context, error) {
 
 //Struct implements default context
 type MutableContext struct {
-	components []*ComponentImpl //List of registered components
+	components           []*ComponentImpl //List of registered components
 	registrationHandlers []ComponentRegisterAware
 }
 
@@ -88,14 +88,14 @@ type Component interface {
 }
 
 func (c *MutableContext) RegisterComponent(value interface{}) {
-	c.RegisterComponentWithTags(value,"")
+	c.RegisterComponentWithTags(value, "")
 }
 
-func (c *MutableContext) RegisterComponentWithTags(value interface{},tags string) {
+func (c *MutableContext) RegisterComponentWithTags(value interface{}, tags string) {
 	t := reflect.TypeOf(value)
-	log.Println("Registering component ", t,"tags",tags)
+	log.Println("Registering component ", t, "tags", tags)
 
-	comp:=&ComponentImpl{value, t,tags}
+	comp := &ComponentImpl{value, t, tags}
 
 	c.components = append(c.components, comp)
 
@@ -103,14 +103,13 @@ func (c *MutableContext) RegisterComponentWithTags(value interface{},tags string
 		v.SetContext(c)
 	}
 
-	for _,handler := range c.registrationHandlers{
+	for _, handler := range c.registrationHandlers {
 		handler.OnComponentRegistered(comp)
 	}
 
 	if v, ok := value.(ComponentRegisterAware); ok {
-		c.registrationHandlers = append(c.registrationHandlers,v)
+		c.registrationHandlers = append(c.registrationHandlers, v)
 	}
-
 
 }
 
@@ -156,15 +155,14 @@ func (c *MutableContext) FindComponentsByType(t reflect.Type) []*ComponentImpl {
 	return r
 }
 
-
-func (t *ComponentImpl)Instance() interface{}{
-	return t.inst;
+func (t *ComponentImpl) Instance() interface{} {
+	return t.inst
 }
 
-func (t *ComponentImpl) Type() reflect.Type{
+func (t *ComponentImpl) Type() reflect.Type {
 	return t.ty
 }
 
-func (t *ComponentImpl) Tags() reflect.StructTag{
+func (t *ComponentImpl) Tags() reflect.StructTag {
 	return reflect.StructTag(t.tags)
 }
