@@ -10,9 +10,10 @@ import (
 //Default component that enables `autowire` tag on fields
 type AutowiringProcessor struct {
 	//points to component context served by this prcessor
-	ctx             *MutableContext
-	configurer	ComponentConfigurer
+	ctx        *MutableContext
+	configurer ComponentConfigurer
 }
+
 func _() {
 	var _ ComponentLifecycle = &AutowiringProcessor{}
 }
@@ -30,10 +31,10 @@ func (this *AutowiringProcessor) SetContext(c Context) error {
 		this.ctx = v
 		ty := reflect.TypeOf((*ComponentConfigurer)(nil)).Elem()
 
-		components:=v.FindComponentsByType(ty)
+		components := v.FindComponentsByType(ty)
 
-		if len(components)!=1{
-			return fmt.Errorf("Bad context setup. Required 1 instance that implements ComponentConfigurer iface. Actual count: %v",len(components))
+		if len(components) != 1 {
+			return fmt.Errorf("Bad context setup. Required 1 instance that implements ComponentConfigurer iface. Actual count: %v", len(components))
 		}
 
 		this.configurer = components[0].inst.(ComponentConfigurer)
@@ -52,7 +53,7 @@ func (this *AutowiringProcessor) OnComponentReady(c *ComponentImpl) error {
 	return nil
 }
 
-func (this *AutowiringProcessor) OnDestroyComponent(c *ComponentImpl) error{
+func (this *AutowiringProcessor) OnDestroyComponent(c *ComponentImpl) error {
 	return nil
 }
 
@@ -68,7 +69,7 @@ func (this *AutowiringProcessor) autowireInstance(c interface{}) error {
 	t := reflect.ValueOf(c).Elem()
 
 	//We can autowire just structs
-	if t.Kind()!=reflect.Struct{
+	if t.Kind() != reflect.Struct {
 		return nil
 	}
 
@@ -76,15 +77,17 @@ func (this *AutowiringProcessor) autowireInstance(c interface{}) error {
 		fldAccessor := t.Field(i)
 		fld := t.Type().Field(i)
 
-		if v := fld.Tag.Get("inject"); v == "type" || v=="t" {
+		if v := fld.Tag.Get("inject"); v == "type" || v == "t" {
 			if err := this.injectFieldByType(fldAccessor, fld.Type); err != nil {
-				return fmt.Errorf("Unable to process field %v, error %v",fld.Name,err)
+				//return fmt.Errorf("Unable to process field %v, error %v",fld.Name,err)
+				return typeConstructError(t.Type(), fld, err)
 			}
 		}
 
-		if v:= fld.Tag.Get("inject"); v=="all" || v=="a"{
+		if v := fld.Tag.Get("inject"); v == "all" || v == "a" {
 			if err := this.injectAllComponentsByType(fldAccessor, fld.Type); err != nil {
-				return err
+				//return err
+				return typeConstructError(t.Type(), fld, err)
 			}
 		}
 	}
@@ -111,7 +114,7 @@ func (this *AutowiringProcessor) injectFieldByType(fld reflect.Value, t reflect.
 
 	r := candidates[0]
 
-	if err:=this.configurer.ConfigureComponent(r);err!=nil{
+	if err := this.configurer.ConfigureComponent(r); err != nil {
 		return err
 	}
 
@@ -123,8 +126,8 @@ func (this *AutowiringProcessor) injectFieldByType(fld reflect.Value, t reflect.
 func (this *AutowiringProcessor) injectAllComponentsByType(fld reflect.Value, t reflect.Type) error {
 	log.Println("Injecting field", fld, "by all type instances")
 
-	if t.Kind()!=reflect.Slice{
-		return fmt.Errorf("Bad inject:all field. Slice expected, got: %v",t.Kind())
+	if t.Kind() != reflect.Slice {
+		return fmt.Errorf("Bad inject:all field. Slice expected, got: %v", t.Kind())
 	}
 
 	sliceType := t
@@ -141,21 +144,23 @@ func (this *AutowiringProcessor) injectAllComponentsByType(fld reflect.Value, t 
 		return errors.New(fmt.Sprint("Field", fld, " cannot be set. Is it declared public?"))
 	}
 
-	target := reflect.MakeSlice(sliceType,len(candidates),len(candidates))
+	target := reflect.MakeSlice(sliceType, len(candidates), len(candidates))
 
+	for i, c := range candidates {
+		r := c
 
-	for i,c := range candidates{
-		r:=c
-
-		if err:=this.configurer.ConfigureComponent(r);err!=nil{
+		if err := this.configurer.ConfigureComponent(r); err != nil {
 			return err
 		}
 
 		target.Index(i).Set(reflect.ValueOf(r.inst))
 	}
 
-
 	fld.Set(target)
 
 	return nil
+}
+
+func typeConstructError(t reflect.Type, f reflect.StructField, cause error) error {
+	return fmt.Errorf("Unable to costruct type %v:  Failed to fill field %v: %v", t, f, cause)
 }
