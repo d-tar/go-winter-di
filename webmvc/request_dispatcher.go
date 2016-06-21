@@ -15,6 +15,7 @@ import (
 )
 
 type RequestMapping struct {
+	Method          string
 	Pattern         string
 	Handler         WebController
 	CompiledPattern *regexp.Regexp
@@ -23,8 +24,13 @@ type RequestMapping struct {
 
 var _ http.Handler = &RequestDispatcher{}
 
+type mappedPattern struct {
+	Method string
+	Path   string
+}
+
 type RequestDispatcher struct {
-	mappingTable map[string]*RequestMapping
+	mappingTable map[mappedPattern]*RequestMapping
 
 	Mvc *WebViewResolver       `inject:"t"`
 	Ctx wntr.ConfiguredContext `inject:"t"`
@@ -35,9 +41,11 @@ func (disp *RequestDispatcher) PostInit() error {
 
 		tag := ctl.Tags()
 		if uri := tag.Get("@web-uri"); uri != "" {
+
 			rmap := RequestMapping{
 				Handler: ctl.Instance().(WebController),
 				Pattern: uri,
+				Method:  tag.Get("@web-method"),
 			}
 
 			if err := disp.MapRequest(rmap); err != nil {
@@ -58,22 +66,27 @@ func (disp *RequestDispatcher) MapRequest(m RequestMapping) error {
 	m.CompiledPattern = rgx
 	m.NamedParams = params
 
-	if disp.mappingTable == nil {
-		disp.mappingTable = make(map[string]*RequestMapping)
+	k := mappedPattern{
+		Method: m.Method,
+		Path:   rgx.String(),
 	}
 
-	if _, ok := disp.mappingTable[rgx.String()]; ok {
+	if disp.mappingTable == nil {
+		disp.mappingTable = make(map[mappedPattern]*RequestMapping)
+	}
+
+	if _, ok := disp.mappingTable[k]; ok {
 		return fmt.Errorf("Pattern '%v' already mapped")
 	}
-	log.Printf("RequestDispatcher: Mapped %v on to %v \n", m.Pattern, m.Handler)
-	disp.mappingTable[rgx.String()] = &m
+	log.Printf("RequestDispatcher: Mapped |%v| %v on to %v \n", m.Method, m.Pattern, m.Handler)
+	disp.mappingTable[k] = &m
 	return nil
 }
 
 func (disp *RequestDispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	uri := r.RequestURI
 
-	m, params := disp.findMappingForUri(uri)
+	m, params := disp.findMappingForUri(uri, r.Method)
 
 	if m == nil {
 		disp.serve404(w, r)
@@ -97,11 +110,17 @@ func (disp *RequestDispatcher) ServeHTTP(w http.ResponseWriter, r *http.Request)
 
 func (disp *RequestDispatcher) serve404(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(404)
-	fmt.Fprint(w, "<html><body><h2>404 Not Found</h2><br>No Request Processor for URI:<br><br><h4><u>", r.RequestURI, "</h4></u><br><br><i>Faithfully yours, WebMVC RequestDispatcher</i></body></html>")
+	fmt.Fprint(w, "<html><body><h2>404 Not Found</h2><br>No Request Processor for URI:<br><br><h4>",
+		r.Method, " ",
+		"<u>", r.RequestURI, "</u></h4><br><br><i>Faithfully yours, WebMVC RequestDispatcher</i></body></html>")
 }
 
-func (disp *RequestDispatcher) findMappingForUri(uri string) (*RequestMapping, map[string]string) {
+func (disp *RequestDispatcher) findMappingForUri(uri string, method string) (*RequestMapping, map[string]string) {
 	for _, mapping := range disp.mappingTable {
+		if mapping.Method != "" && mapping.Method != method {
+			continue
+		}
+
 		match := mapping.CompiledPattern.FindStringSubmatch(uri)
 		if len(match) == 0 {
 			continue
