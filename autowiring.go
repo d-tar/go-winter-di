@@ -10,7 +10,7 @@ import (
 //Default component that enables `autowire` tag on fields
 type AutowiringProcessor struct {
 	//points to component context served by this prcessor
-	ctx        *MutableContext
+	ctx        ConfiguredContext
 	configurer ComponentConfigurer
 }
 
@@ -28,17 +28,15 @@ func NewAutowiringProcessor() *AutowiringProcessor {
 //Get current module context
 func (this *AutowiringProcessor) SetContext(c Context) error {
 	if v, ok := c.(*MutableContext); ok {
-		this.ctx = v
-		ty := reflect.TypeOf((*ComponentConfigurer)(nil)).Elem()
-
-		components := v.FindComponentsByType(ty)
-
-		if len(components) != 1 {
-			return fmt.Errorf("Bad context setup. Required 1 instance that implements ComponentConfigurer iface. Actual count: %v", len(components))
+		if err := v.FindSingleComponent(&this.configurer); err != nil {
+			return fmt.Errorf("Bad context setup. Failed to FindSingleComponent ComponentConfigurer: %v", err)
 		}
 
-		this.configurer = components[0].inst.(ComponentConfigurer)
+		if err := v.FindSingleComponent(&this.ctx); err != nil {
+			return fmt.Errorf("Bad context setup. Failed to FindSingleComponent ConfiguredContext: %v", err)
+		}
 
+		//this.ctx = v
 		return nil
 	}
 
@@ -114,11 +112,11 @@ func (this *AutowiringProcessor) injectFieldByType(fld reflect.Value, f reflect.
 
 	r := candidates[0]
 
-	if err := this.configurer.ConfigureComponent(r); err != nil {
+	if err := this.configurer.ConfigureComponent(r.(*ComponentImpl)); err != nil {
 		return err
 	}
 
-	fld.Set(reflect.ValueOf(r.inst))
+	fld.Set(reflect.ValueOf(r.Instance()))
 
 	return nil
 }
@@ -138,7 +136,7 @@ func (this *AutowiringProcessor) injectAllComponentsByType(fld reflect.Value, f 
 	candidates := this.ctx.FindComponentsByType(t)
 
 	if len(candidates) == 0 {
-		return errors.New(fmt.Sprint("Component not found. Type", t))
+		return nil //errors.New(fmt.Sprint("Component not found. Type", t))
 	}
 
 	if !fld.CanSet() {
@@ -150,11 +148,11 @@ func (this *AutowiringProcessor) injectAllComponentsByType(fld reflect.Value, f 
 	for i, c := range candidates {
 		r := c
 
-		if err := this.configurer.ConfigureComponent(r); err != nil {
+		if err := this.configurer.ConfigureComponent(r.(*ComponentImpl)); err != nil {
 			return err
 		}
 
-		target.Index(i).Set(reflect.ValueOf(r.inst))
+		target.Index(i).Set(reflect.ValueOf(r.Instance()))
 	}
 
 	fld.Set(target)

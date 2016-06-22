@@ -37,13 +37,16 @@ func CreateComplexContext(definitions ...interface{}) (Context, error) {
 		return nil, err
 	}
 
+	return ctx, PopulateContextFromDefinitions(ctx, definitions...)
+}
+
+func PopulateContextFromDefinitions(ctx Context, definitions ...interface{}) error {
 	for _, configuration := range definitions {
 		if err := populateComponents(ctx, configuration); err != nil {
-			return nil, err
+			return err
 		}
 	}
-
-	return ctx, nil
+	return nil
 }
 
 func populateComponents(ctx Context, def interface{}) error {

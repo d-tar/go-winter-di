@@ -1,6 +1,7 @@
 package wntr
 
 import (
+	"fmt"
 	"log"
 	"reflect"
 )
@@ -39,14 +40,20 @@ type ComponentRegisterAware interface {
 //Public default context constructor
 //By default uses StandardLifecycle
 func NewContext() (c Context, e error) {
-	c = &MutableContext{
+	c = newMutableContext()
+
+	c.RegisterComponent(NewStandardLifecycle())
+
+	return c, nil
+}
+
+func newMutableContext() *MutableContext {
+	c := &MutableContext{
 		components: make([]*ComponentImpl, 0),
 	}
 
 	c.RegisterComponent(c)
-	c.RegisterComponent(NewStandardLifecycle())
-
-	return c, nil
+	return c
 }
 
 func FastDefaultContext(components ...interface{}) (Context, error) {
@@ -100,7 +107,9 @@ func (c *MutableContext) RegisterComponentWithTags(value interface{}, tags strin
 	c.components = append(c.components, comp)
 
 	if v, ok := value.(ContextAware); ok {
-		v.SetContext(c)
+		if err := v.SetContext(c); err != nil {
+			panic(err)
+		}
 	}
 
 	for _, handler := range c.registrationHandlers {
@@ -153,6 +162,28 @@ func (c *MutableContext) FindComponentsByType(t reflect.Type) []*ComponentImpl {
 		}
 	}
 	return r
+}
+
+func (c *MutableContext) FindSingleComponent(vptr interface{}) error {
+	t := reflect.TypeOf(vptr)
+
+	if t.Kind() != reflect.Ptr {
+		return fmt.Errorf("%T is not a pointer type", vptr)
+	}
+
+	t = t.Elem() //Dereference pointer
+
+	comps := c.FindComponentsByType(t)
+
+	if len(comps) != 1 {
+		return fmt.Errorf("Failed to resolve single component for %v. Found: %v", t.Name(), len(comps))
+	}
+
+	v := reflect.ValueOf(comps[0].Instance())
+
+	reflect.ValueOf(vptr).Elem().Set(v)
+
+	return nil
 }
 
 func (t *ComponentImpl) Instance() interface{} {
